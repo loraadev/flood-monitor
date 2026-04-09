@@ -1,12 +1,14 @@
 import requests
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from database import create_table, insert_data
 from analyzer import analyze_risk
 
 API_KEY = os.environ.get("API_KEY", "9003d68f338e20cf98df1ee527c17340")
 CITY = "Osvaldo Cruz,BR"
 URL = f"http://api.openweathermap.org/data/2.5/weather?q={CITY}&appid={API_KEY}&units=metric&lang=pt_br"
+
+fuso_brasilia = timezone(timedelta(hours=-3))
 
 def collect_data():
     try:
@@ -20,7 +22,7 @@ def collect_data():
             rain_1h = data["rain"].get("1h", 0)
         humidity = data["main"]["humidity"]
         description = data["weather"][0]["description"]
-        timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
+        timestamp = datetime.now(fuso_brasilia).strftime("%d/%m/%Y %H:%M")
         risk_level = analyze_risk(rain_1h)
         create_table()
         insert_data(timestamp, CITY, rain_1h, humidity, description, risk_level)
