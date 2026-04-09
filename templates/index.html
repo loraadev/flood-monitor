@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitor de Enchentes</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    body { background: #f0f2f5; }
+    header { background: #1a3a5c; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 18px; font-weight: 600; }
+    header span { font-size: 12px; opacity: 0.7; }
+    #alert-bar { padding: 12px 24px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 20px 24px; }
+    .card { background: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .card-label { font-size: 12px; color: #666; margin-bottom: 6px; }
+    .card-value { font-size: 26px; font-weight: 700; color: #1a3a5c; }
+    .card-sub { font-size: 11px; color: #999; margin-top: 4px; }
+    .section { padding: 0 24px 20px; }
+    .section-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 10px; }
+    .chart-box { background: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    th { background: #f8f9fa; padding: 10px 14px; font-size: 12px; color: #555; text-align: left; }
+    td { padding: 10px 14px; font-size: 13px; border-top: 1px solid #f0f0f0; }
+    .badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
+    .badge-normal { background: #d4edda; color: #155724; }
+    .badge-atencao { background: #fff3cd; color: #856404; }
+    .badge-alerta { background: #f8d7da; color: #721c24; }
+    footer { text-align: center; padding: 16px; font-size: 11px; color: #aaa; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Sistema de Monitoramento de Enchentes</h1>
+  <span id="last-update">Carregando...</span>
+</header>
+
+<div id="alert-bar">
+  <span class="dot" id="alert-dot"></span>
+  <span id="alert-text">Carregando dados...</span>
+</div>
+
+<div class="cards">
+  <div class="card">
+    <div class="card-label">Precipitação atual</div>
+    <div class="card-value" id="rain-value">--</div>
+    <div class="card-sub">mm/h na última hora</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Umidade</div>
+    <div class="card-value" id="humidity-value">--</div>
+    <div class="card-sub">Umidade relativa do ar</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Nível de risco</div>
+    <div class="card-value" id="risk-value">--</div>
+    <div class="card-sub">Baseado na precipitação</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Precipitação nas últimas coletas (mm/h)</div>
+  <div class="chart-box">
+    <canvas id="rainChart" height="100"></canvas>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Histórico de registros</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Data/Hora</th>
+        <th>Chuva (mm/h)</th>
+        <th>Umidade</th>
+        <th>Condição</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="history-body">
+      <tr><td colspan="5" style="text-align:center;color:#aaa;">Carregando...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>
+  Cidade monitorada: Osvaldo Cruz, SP &nbsp;|&nbsp; Fonte: OpenWeatherMap API &nbsp;|&nbsp; Coleta automática a cada 30 min
+</footer>
+
+<script>
+  let rainChart = null;
+
+  function getBadgeClass(risk) {
+    if (risk === "Normal") return "badge-normal";
+    if (risk === "Atenção") return "badge-atencao";
+    return "badge-alerta";
+  }
+
+  function getAlertStyle(risk, color) {
+    if (risk === "Normal") return { bg: "#d4edda", color: "#155724", text: "NORMAL — Nenhum risco de enchente detectado." };
+    if (risk === "Atenção") return { bg: "#fff3cd", color: "#856404", text: "ATENÇÃO — Precipitação moderada. Monitoramento ativo." };
+    return { bg: "#f8d7da", color: "#721c24", text: "ALERTA VERMELHO — Risco elevado de enchente!" };
+  }
+
+  async function loadLatest() {
+    const res = await fetch("/api/latest");
+    const d = await res.json();
+
+    document.getElementById("rain-value").textContent = d.rain_1h.toFixed(1) + " mm/h";
+    document.getElementById("humidity-value").textContent = d.humidity + "%";
+    document.getElementById("risk-value").textContent = d.risk_level;
+    document.getElementById("risk-value").style.color = d.color;
+    document.getElementById("last-update").textContent = "Atualizado: " + d.timestamp;
+
+    const alert = getAlertStyle(d.risk_level, d.color);
+    const bar = document.getElementById("alert-bar");
+    bar.style.background = alert.bg;
+    bar.style.color = alert.color;
+    document.getElementById("alert-dot").style.background = d.color;
+    document.getElementById("alert-text").textContent = alert.text;
+  }
+
+  async function loadHistory() {
+    const res = await fetch("/api/data");
+    const data = await res.json();
+
+    const tbody = document.getElementById("history-body");
+    tbody.innerHTML = "";
+    data.forEach(d => {
+      const badge = getBadgeClass(d.risk_level);
+      tbody.innerHTML += `
+        <tr>
+          <td>${d.timestamp}</td>
+          <td>${d.rain_1h.toFixed(1)}</td>
+          <td>${d.humidity}%</td>
+          <td>${d.description}</td>
+          <td><span class="badge ${badge}">${d.risk_level}</span></td>
+        </tr>`;
+    });
+
+    const labels = data.map(d => d.timestamp).reverse();
+    const values = data.map(d => d.rain_1h).reverse();
+    const colors = data.map(d => d.color).reverse();
+
+    if (rainChart) rainChart.destroy();
+    rainChart = new Chart(document.getElementById("rainChart"), {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [{
+          label: "Precipitação (mm/h)",
+          data: values,
+          backgroundColor: colors,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true },
+          x: { ticks: { font: { size: 10 } } }
+        }
+      }
+    });
+  }
+
+  async function loadAll() {
+    await loadLatest();
+    await loadHistory();
+  }
+
+  loadAll();
+  setInterval(loadAll, 60000);
+</script>
+
+</body>
+</html>
