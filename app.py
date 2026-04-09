@@ -6,6 +6,10 @@ from analyzer import get_risk_color
 
 app = Flask(__name__)
 
+create_table()
+collect_data()
+start_scheduler()
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -51,7 +55,4 @@ def api_latest():
     })
 
 if __name__ == "__main__":
-    create_table()
-    collect_data()
-    start_scheduler()
     app.run(debug=True)
