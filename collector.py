@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 from database import create_table, insert_data
 from analyzer import analyze_risk
 
-API_KEY = os.environ.get("API_KEY", "9003d68f338e20cf98df1ee527c17340")
+API_KEY = os.environ.get("API_KEY")
 CITY = "Osvaldo Cruz,BR"
 URL = f"http://api.openweathermap.org/data/2.5/weather?q={CITY}&appid={API_KEY}&units=metric&lang=pt_br"
 
