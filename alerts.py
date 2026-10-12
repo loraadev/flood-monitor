@@ -1,14 +1,16 @@
 from datetime import datetime, timedelta
 from analyzer import evaluate_alert, accumulated_rain, LEVEL_ORDER
 from database import create_table, get_alert_level, set_alert_level, reset_alert_levels
+from telegram_bot import notify_city
 
-def check_alert(city, rain_now, wind_speed, accumulated_24h, forecast, now):
-    """Avalia o risco da cidade e decide se alertaria.
+def check_alert(city, rain_now, wind_speed, accumulated_24h, forecast, now, notify=True):
+    """Avalia o risco da cidade e decide se alerta.
 
     Só alerta quando o nível SOBE em relação ao último notificado
     (Normal -> Atenção -> Alerta Vermelho). No mesmo nível não repete.
     Quando o nível baixa, o estado é atualizado sem alertar, para que uma
-    nova subida volte a disparar. Por enquanto só registra no log.
+    nova subida volte a disparar. Com notify=True, envia o alerta pelo
+    Telegram aos inscritos da cidade.
     """
     result = evaluate_alert(rain_now, wind_speed, accumulated_24h, forecast)
     level = result["level"]
@@ -22,6 +24,12 @@ def check_alert(city, rain_now, wind_speed, accumulated_24h, forecast, now):
             print(f"    também: {other['level']}, {other['origin']}, {other['message']}")
         set_alert_level(city, level, stamp)
         result["status"] = "alertaria"
+        if notify:
+            # Falha no envio não desfaz o registro do novo nível
+            try:
+                notify_city(city, level, main["message"])
+            except Exception as e:
+                print(f"Erro ao enviar alerta de {city} pelo Telegram: {type(e).__name__}")
     elif LEVEL_ORDER[level] < LEVEL_ORDER[previous]:
         print(f"[alerta] {city}: nível baixou de {previous} para {level} (sem alerta)")
         set_alert_level(city, level, stamp)
@@ -51,7 +59,8 @@ def simulate():
 
     def step(title, city, rain=0, wind=10, accumulated=0, forecast=dry):
         print(f"\n> {title}")
-        result = check_alert(city, rain, wind, accumulated, forecast, now)
+        # notify=False: a simulação nunca envia mensagens de verdade
+        result = check_alert(city, rain, wind, accumulated, forecast, now, notify=False)
         if result["status"] == "mantido":
             print(f"  (sem novo alerta: {city} continua em {result['level']})")
 

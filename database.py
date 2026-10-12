@@ -53,6 +53,15 @@ def create_table():
             updated_at TEXT
         )
     """)
+    # Inscritos do Telegram: um chat pode acompanhar várias cidades (slug)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS subscribers (
+            chat_id INTEGER NOT NULL,
+            city TEXT NOT NULL,
+            created_at TEXT,
+            PRIMARY KEY (chat_id, city)
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -122,6 +131,48 @@ def set_alert_level(city, level, updated_at):
     """, (city, level, updated_at))
     conn.commit()
     conn.close()
+
+def add_subscriber(chat_id, city, created_at):
+    # Devolve True se a inscrição é nova, False se já existia
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT OR IGNORE INTO subscribers (chat_id, city, created_at)
+        VALUES (?, ?, ?)
+    """, (chat_id, city, created_at))
+    added = cursor.rowcount == 1
+    conn.commit()
+    conn.close()
+    return added
+
+def get_subscriptions(chat_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT city FROM subscribers WHERE chat_id = ? ORDER BY rowid", (chat_id,))
+    rows = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+def get_subscribers(city):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT chat_id FROM subscribers WHERE city = ?", (city,))
+    rows = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+def remove_subscription(chat_id, city=None):
+    # Sem cidade, remove todas as inscrições do chat
+    conn = get_connection()
+    cursor = conn.cursor()
+    if city is None:
+        cursor.execute("DELETE FROM subscribers WHERE chat_id = ?", (chat_id,))
+    else:
+        cursor.execute("DELETE FROM subscribers WHERE chat_id = ? AND city = ?", (chat_id, city))
+    removed = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return removed
 
 def reset_alert_levels(cities):
     conn = get_connection()

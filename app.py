@@ -5,6 +5,7 @@ from collector import get_forecast
 from scheduler import start_scheduler
 from analyzer import get_risk_color
 from cities import CITIES, DEFAULT_CITY_SLUG, get_city
+from telegram_bot import WEBHOOK_PATH, check_webhook_secret, handle_update
 
 app = Flask(__name__)
 
@@ -86,6 +87,25 @@ def api_forecast():
     except Exception as e:
         print(f"Erro ao buscar previsão de {city['name']}: {e}")
         return jsonify({"error": "Não foi possível obter a previsão"}), 502
+
+# Webhook do Telegram: só existe com TELEGRAM_WEBHOOK_SECRET definido.
+# O caminho é derivado do segredo e toda chamada precisa trazer o segredo
+# no cabeçalho X-Telegram-Bot-Api-Secret-Token.
+if WEBHOOK_PATH:
+    @app.route(WEBHOOK_PATH, methods=["POST"])
+    def telegram_webhook():
+        if not check_webhook_secret(request.headers.get("X-Telegram-Bot-Api-Secret-Token")):
+            return "", 403
+        if (request.content_length or 0) > 100_000:
+            return "", 413
+        try:
+            handle_update(request.get_json(silent=True))
+        except Exception as e:
+            print(f"Erro ao tratar mensagem do Telegram: {type(e).__name__}")
+        # Responde 200 mesmo com erro interno para o Telegram não reenviar a mesma mensagem
+        return "", 200
+else:
+    print("Telegram: TELEGRAM_WEBHOOK_SECRET não configurado; webhook desativado.")
 
 if __name__ == "__main__":
     app.run(debug=os.environ.get("FLASK_DEBUG") == "1")
