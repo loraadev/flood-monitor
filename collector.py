@@ -70,7 +70,7 @@ def collect_city(city):
     now = datetime.now(fuso_brasilia)
     timestamp = now.strftime("%d/%m/%Y %H:%M")
     risk_level = analyze_risk(rain_1h)
-    insert_data(timestamp, city["name"], rain_1h, humidity, description, risk_level, wind_speed)
+    insert_data(timestamp, city["name"], rain_1h, humidity, description, risk_level, wind_speed, origem_dado="oficial")
     print(f"[{timestamp}] {city['name']}: chuva={rain_1h}mm/h | umidade={humidity}% | vento={wind_speed}km/h | risco={risk_level}")
 
     # Falha na avaliação de alerta não desfaz a coleta já gravada

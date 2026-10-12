@@ -1,5 +1,21 @@
 import sqlite3
 
+NEW_COLUMNS = [
+    ("wind_speed", "REAL"),
+    # Origem do registro: "oficial" (Open-Meteo); futuramente, o sensor físico
+    ("origem_dado", "TEXT"),
+    # Dados futuros do sensor físico (ficam nulos por enquanto)
+    ("id_dispositivo", "TEXT"),
+    ("ponto_instalacao", "TEXT"),
+    ("co2_ppm", "REAL"),
+    ("pm1_0", "REAL"),
+    ("pm2_5", "REAL"),
+    ("pm10", "REAL"),
+    ("temperatura_sensor", "REAL"),
+    ("umidade_sensor", "REAL"),
+    ("status_conexao", "TEXT")
+]
+
 def get_connection():
     conn = sqlite3.connect("flood_data.db")
     return conn
@@ -19,11 +35,16 @@ def create_table():
             wind_speed REAL
         )
     """)
-    # Bancos criados antes da coluna wind_speed: adiciona sem apagar o histórico
+    # Colunas adicionadas depois da criação da tabela: entram em bancos
+    # antigos sem apagar o histórico, e só se ainda não existirem
     cursor.execute("PRAGMA table_info(weather_data)")
     columns = [column[1] for column in cursor.fetchall()]
-    if "wind_speed" not in columns:
-        cursor.execute("ALTER TABLE weather_data ADD COLUMN wind_speed REAL")
+    for name, sql_type in NEW_COLUMNS:
+        if name not in columns:
+            cursor.execute(f"ALTER TABLE weather_data ADD COLUMN {name} {sql_type}")
+            if name == "origem_dado":
+                # Todo o histórico existente veio da API meteorológica oficial
+                cursor.execute("UPDATE weather_data SET origem_dado = 'oficial' WHERE origem_dado IS NULL")
     # Último nível de alerta notificado por cidade
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS alert_state (
@@ -35,13 +56,13 @@ def create_table():
     conn.commit()
     conn.close()
 
-def insert_data(timestamp, city, rain_1h, humidity, description, risk_level, wind_speed=None):
+def insert_data(timestamp, city, rain_1h, humidity, description, risk_level, wind_speed=None, origem_dado=None):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO weather_data (timestamp, city, rain_1h, humidity, description, risk_level, wind_speed)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (timestamp, city, rain_1h, humidity, description, risk_level, wind_speed))
+        INSERT INTO weather_data (timestamp, city, rain_1h, humidity, description, risk_level, wind_speed, origem_dado)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (timestamp, city, rain_1h, humidity, description, risk_level, wind_speed, origem_dado))
     conn.commit()
     conn.close()
 
