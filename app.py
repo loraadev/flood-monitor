@@ -1,7 +1,7 @@
 import os
 from flask import Flask, render_template, jsonify
 from database import create_table, get_recent_data
-from collector import collect_data
+from collector import collect_data, get_forecast
 from scheduler import start_scheduler
 from analyzer import get_risk_color
 
@@ -30,7 +30,8 @@ def api_data():
             "humidity": row[3],
             "description": row[4],
             "risk_level": row[5],
-            "color": get_risk_color(row[5])
+            "color": get_risk_color(row[5]),
+            "wind_speed": row[6]
         })
     return jsonify(data)
 
@@ -45,7 +46,8 @@ def api_latest():
             "humidity": 0,
             "description": "--",
             "risk_level": "Normal",
-            "color": "#28a745"
+            "color": "#28a745",
+            "wind_speed": 0
         })
     row = rows[0]
     return jsonify({
@@ -55,8 +57,17 @@ def api_latest():
         "humidity": row[3],
         "description": row[4],
         "risk_level": row[5],
-        "color": get_risk_color(row[5])
+        "color": get_risk_color(row[5]),
+        "wind_speed": row[6]
     })
+
+@app.route("/api/forecast")
+def api_forecast():
+    try:
+        return jsonify(get_forecast())
+    except Exception as e:
+        print(f"Erro ao buscar previsão: {e}")
+        return jsonify({"error": "Não foi possível obter a previsão"}), 502
 
 if __name__ == "__main__":
     app.run(debug=os.environ.get("FLASK_DEBUG") == "1")

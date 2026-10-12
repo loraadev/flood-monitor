@@ -15,19 +15,25 @@ def create_table():
             rain_1h REAL DEFAULT 0,
             humidity INTEGER,
             description TEXT,
-            risk_level TEXT
+            risk_level TEXT,
+            wind_speed REAL
         )
     """)
+    # Bancos criados antes da coluna wind_speed: adiciona sem apagar o histórico
+    cursor.execute("PRAGMA table_info(weather_data)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if "wind_speed" not in columns:
+        cursor.execute("ALTER TABLE weather_data ADD COLUMN wind_speed REAL")
     conn.commit()
     conn.close()
 
-def insert_data(timestamp, city, rain_1h, humidity, description, risk_level):
+def insert_data(timestamp, city, rain_1h, humidity, description, risk_level, wind_speed=None):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO weather_data (timestamp, city, rain_1h, humidity, description, risk_level)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (timestamp, city, rain_1h, humidity, description, risk_level))
+        INSERT INTO weather_data (timestamp, city, rain_1h, humidity, description, risk_level, wind_speed)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (timestamp, city, rain_1h, humidity, description, risk_level, wind_speed))
     conn.commit()
     conn.close()
 
@@ -35,7 +41,7 @@ def get_recent_data(limit=24):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT timestamp, city, rain_1h, humidity, description, risk_level
+        SELECT timestamp, city, rain_1h, humidity, description, risk_level, wind_speed
         FROM weather_data
         ORDER BY id DESC
         LIMIT ?
