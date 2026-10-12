@@ -6,13 +6,15 @@ Sistema IoT de monitoramento climático com análise de risco de enchentes em te
 
 ## 📡 Sobre o projeto
 
-O sistema coleta automaticamente dados meteorológicos da cidade de **Osvaldo Cruz, SP** por meio de uma API pública, armazena as informações em um banco de dados e classifica o risco de enchente em três níveis. Os dados são exibidos em um painel web acessível por qualquer dispositivo.
+O sistema coleta automaticamente dados meteorológicos de quatro cidades do interior de São Paulo (**Adamantina, Lucélia, Osvaldo Cruz e Inúbia Paulista**) por meio da API pública Open-Meteo (gratuita e sem chave de API), armazena as informações em um banco de dados e classifica o risco de enchente em três níveis. Os dados são exibidos em um painel web acessível por qualquer dispositivo.
 
 ---
 
 ## ✨ Funcionalidades
 
-- Coleta automática de dados climáticos a cada 30 minutos
+- Coleta automática de dados climáticos (chuva, umidade e vento) de todas as cidades a cada 30 minutos
+- Seletor de cidade no painel (as rotas da API aceitam `?city=<slug>`; a lista fica em `/api/cities`)
+- Previsão horária de chuva para as próximas 12 horas (rota `/api/forecast`)
 - Análise e classificação de risco em tempo real
 - Painel web com gráfico de precipitação e histórico de registros
 - Banner de alerta dinâmico com três níveis de risco
@@ -41,7 +43,7 @@ O sistema coleta automaticamente dados meteorológicos da cidade de **Osvaldo Cr
 | Gunicorn | Servidor WSGI para produção |
 | HTML + CSS + JavaScript | Interface do painel web |
 | Chart.js | Gráfico de precipitação |
-| OpenWeatherMap API | Fonte dos dados climáticos |
+| Open-Meteo API | Fonte dos dados climáticos e da previsão |
 | Render.com | Hospedagem online gratuita |
 | GitHub | Versionamento de código |
 
@@ -52,6 +54,7 @@ O sistema coleta automaticamente dados meteorológicos da cidade de **Osvaldo Cr
 ```
 flood-monitor/
 ├── app.py              # Servidor Flask e rotas da API
+├── cities.py           # Lista central das cidades monitoradas
 ├── collector.py        # Coleta de dados da API climática
 ├── database.py         # Criação e gerenciamento do banco SQLite
 ├── analyzer.py         # Regras de classificação de risco
@@ -67,7 +70,7 @@ flood-monitor/
 ## 🔄 Arquitetura do sistema
 
 ```
-OpenWeatherMap API
+  Open-Meteo API
        ↓
   collector.py  ←  scheduler.py (a cada 30 min)
        ↓
@@ -99,10 +102,7 @@ source venv/bin/activate  # Mac/Linux
 # Instale as dependências
 pip install -r requirements.txt
 
-# Configure sua chave da API no collector.py
-# Substitua "SUA_CHAVE_AQUI" pela sua chave do OpenWeatherMap
-
-# Execute o sistema
+# Execute o sistema (não é preciso configurar chave de API)
 python app.py
 ```
 
@@ -122,7 +122,7 @@ O sistema está hospedado gratuitamente no **Render.com** com deploy automático
 
 ## 📊 Fonte dos dados
 
-Os dados climáticos são fornecidos pela [OpenWeatherMap API](https://openweathermap.org/api), plano gratuito, com até 1.000 requisições por dia.
+Os dados climáticos são fornecidos pela [Open-Meteo](https://open-meteo.com/), gratuita para uso não comercial e sem necessidade de chave de API. A consulta é feita pela latitude e longitude de cada cidade, definidas em `cities.py`.
 
 ---
 
