@@ -1,7 +1,7 @@
 import os
 from flask import Flask, render_template, jsonify, request
 from database import create_table, get_recent_data
-from collector import collect_data, get_forecast
+from collector import get_forecast
 from scheduler import start_scheduler
 from analyzer import get_risk_color
 from cities import CITIES, DEFAULT_CITY_SLUG, get_city
@@ -9,10 +9,7 @@ from cities import CITIES, DEFAULT_CITY_SLUG, get_city
 app = Flask(__name__)
 
 create_table()
-try:
-    collect_data()
-except Exception as e:
-    print(f"Erro na coleta inicial: {e}")
+# A coleta inicial roda em segundo plano pelo agendador (ver scheduler.py)
 start_scheduler()
 
 def selected_city():
