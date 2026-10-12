@@ -4,7 +4,7 @@ def analyze_risk(rain_1h):
 
     if rain_1h < 5:
         return "Normal"
-    elif rain_1h < 25:
+    elif rain_1h <= 25:
         return "Atenção"
     else:
         return "Alerta Vermelho"

@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, jsonify
 from database import create_table, get_recent_data
 from collector import collect_data
@@ -7,7 +8,10 @@ from analyzer import get_risk_color
 app = Flask(__name__)
 
 create_table()
-collect_data()
+try:
+    collect_data()
+except Exception as e:
+    print(f"Erro na coleta inicial: {e}")
 start_scheduler()
 
 @app.route("/")
@@ -55,4 +59,4 @@ def api_latest():
     })
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=os.environ.get("FLASK_DEBUG") == "1")
