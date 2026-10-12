@@ -1,7 +1,8 @@
 import requests
 from datetime import datetime, timezone, timedelta
-from database import create_table, insert_data
-from analyzer import analyze_risk
+from database import create_table, insert_data, get_rain_readings
+from analyzer import analyze_risk, accumulated_rain
+from alerts import check_alert
 from cities import CITIES
 
 URL = "https://api.open-meteo.com/v1/forecast"
@@ -59,14 +60,29 @@ def fetch_weather(city):
 def collect_city(city):
     data = fetch_weather(city)
     current = data["current"]
-    rain_1h = current.get("precipitation") or 0
+    # A Open-Meteo devolve a chuva somada no intervalo do bloco "current"
+    # (900 s = 15 min); convertemos para taxa em mm/h
+    interval_s = current.get("interval") or 900
+    rain_1h = round((current.get("precipitation") or 0) * 3600 / interval_s, 2)
     humidity = current.get("relative_humidity_2m")
     wind_speed = current.get("wind_speed_10m")
     description = describe_weather(current.get("weather_code"))
-    timestamp = datetime.now(fuso_brasilia).strftime("%d/%m/%Y %H:%M")
+    now = datetime.now(fuso_brasilia)
+    timestamp = now.strftime("%d/%m/%Y %H:%M")
     risk_level = analyze_risk(rain_1h)
     insert_data(timestamp, city["name"], rain_1h, humidity, description, risk_level, wind_speed)
     print(f"[{timestamp}] {city['name']}: chuva={rain_1h}mm/h | umidade={humidity}% | vento={wind_speed}km/h | risco={risk_level}")
+
+    # Falha na avaliação de alerta não desfaz a coleta já gravada
+    try:
+        readings = [
+            (datetime.strptime(ts, "%d/%m/%Y %H:%M").replace(tzinfo=fuso_brasilia), rain)
+            for ts, rain in get_rain_readings(city["name"])
+        ]
+        accumulated_24h = accumulated_rain(readings, now)
+        check_alert(city["name"], rain_1h, wind_speed, accumulated_24h, next_hours(data, now), now)
+    except Exception as e:
+        print(f"Erro ao avaliar alerta de {city['name']}: {e}")
 
 def collect_data():
     create_table()
@@ -79,8 +95,10 @@ def collect_data():
 
 def get_forecast(city, max_hours=12):
     data = fetch_weather(city)
+    return next_hours(data, datetime.now(fuso_brasilia), max_hours)
+
+def next_hours(data, now, max_hours=12):
     hourly = data["hourly"]
-    now = datetime.now(fuso_brasilia)
     forecast = []
     for time, precipitation, probability in zip(
         hourly["time"], hourly["precipitation"], hourly["precipitation_probability"]
