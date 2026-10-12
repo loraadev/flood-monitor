@@ -180,6 +180,18 @@ def _handle_callback(callback):
         remove_subscription(chat_id, slug)
         send_message(chat_id, f"Pronto, você não vai mais receber alertas de {city['name']}.")
 
+def update_chat_id(update):
+    """chat_id de quem enviou a mensagem ou clicou no botão, ou None."""
+    if not isinstance(update, dict):
+        return None
+    message = update.get("message")
+    if not isinstance(message, dict):
+        callback = update.get("callback_query")
+        message = callback.get("message") if isinstance(callback, dict) else None
+    chat = message.get("chat") if isinstance(message, dict) else None
+    chat_id = chat.get("id") if isinstance(chat, dict) else None
+    return chat_id if isinstance(chat_id, int) else None
+
 def handle_update(update):
     if not isinstance(update, dict):
         return
