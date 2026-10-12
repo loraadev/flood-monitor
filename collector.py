@@ -2,14 +2,10 @@ import requests
 from datetime import datetime, timezone, timedelta
 from database import create_table, insert_data
 from analyzer import analyze_risk
+from cities import CITIES
 
-CITY = "Osvaldo Cruz"
-LATITUDE = -21.79667
-LONGITUDE = -50.87861
 URL = "https://api.open-meteo.com/v1/forecast"
 PARAMS = {
-    "latitude": LATITUDE,
-    "longitude": LONGITUDE,
     "current": "precipitation,relative_humidity_2m,wind_speed_10m,weather_code",
     "hourly": "precipitation,precipitation_probability",
     "timezone": "America/Sao_Paulo"
@@ -52,31 +48,37 @@ fuso_brasilia = timezone(timedelta(hours=-3))
 def describe_weather(code):
     return WEATHER_CODES.get(code, "Desconhecido")
 
-def fetch_weather():
-    response = requests.get(URL, params=PARAMS, timeout=10)
+def fetch_weather(city):
+    params = dict(PARAMS, latitude=city["latitude"], longitude=city["longitude"])
+    response = requests.get(URL, params=params, timeout=10)
     data = response.json()
     if response.status_code != 200:
         raise RuntimeError(f"Erro na API: {data.get('reason', 'desconhecido')}")
     return data
 
-def collect_data():
-    try:
-        data = fetch_weather()
-        current = data["current"]
-        rain_1h = current.get("precipitation") or 0
-        humidity = current.get("relative_humidity_2m")
-        wind_speed = current.get("wind_speed_10m")
-        description = describe_weather(current.get("weather_code"))
-        timestamp = datetime.now(fuso_brasilia).strftime("%d/%m/%Y %H:%M")
-        risk_level = analyze_risk(rain_1h)
-        create_table()
-        insert_data(timestamp, CITY, rain_1h, humidity, description, risk_level, wind_speed)
-        print(f"[{timestamp}] Coletado: chuva={rain_1h}mm/h | umidade={humidity}% | vento={wind_speed}km/h | risco={risk_level}")
-    except Exception as e:
-        print(f"Erro ao coletar dados: {e}")
+def collect_city(city):
+    data = fetch_weather(city)
+    current = data["current"]
+    rain_1h = current.get("precipitation") or 0
+    humidity = current.get("relative_humidity_2m")
+    wind_speed = current.get("wind_speed_10m")
+    description = describe_weather(current.get("weather_code"))
+    timestamp = datetime.now(fuso_brasilia).strftime("%d/%m/%Y %H:%M")
+    risk_level = analyze_risk(rain_1h)
+    insert_data(timestamp, city["name"], rain_1h, humidity, description, risk_level, wind_speed)
+    print(f"[{timestamp}] {city['name']}: chuva={rain_1h}mm/h | umidade={humidity}% | vento={wind_speed}km/h | risco={risk_level}")
 
-def get_forecast(max_hours=12):
-    data = fetch_weather()
+def collect_data():
+    create_table()
+    for city in CITIES:
+        # Cada cidade isolada: se uma falhar, as outras continuam
+        try:
+            collect_city(city)
+        except Exception as e:
+            print(f"Erro ao coletar dados de {city['name']}: {e}")
+
+def get_forecast(city, max_hours=12):
+    data = fetch_weather(city)
     hourly = data["hourly"]
     now = datetime.now(fuso_brasilia)
     forecast = []

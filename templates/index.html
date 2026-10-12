@@ -11,6 +11,8 @@
     header { background: #1a3a5c; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
     header h1 { font-size: 18px; font-weight: 600; }
     header span { font-size: 12px; opacity: 0.7; }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    #city-select { font-size: 13px; padding: 6px 10px; border-radius: 6px; border: none; }
     #alert-bar { padding: 12px 24px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
     .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
     .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 20px 24px; }
@@ -35,7 +37,10 @@
 
 <header>
   <h1>Sistema de Monitoramento de Enchentes</h1>
-  <span id="last-update">Carregando...</span>
+  <div class="header-right">
+    <select id="city-select" aria-label="Cidade"></select>
+    <span id="last-update">Carregando...</span>
+  </div>
 </header>
 
 <div id="alert-bar">
@@ -86,12 +91,67 @@
   </table>
 </div>
 
+<div class="section">
+  <div class="section-title">Previsão de chuva para as próximas horas</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Hora</th>
+        <th>Chuva prevista (mm)</th>
+        <th>Probabilidade</th>
+      </tr>
+    </thead>
+    <tbody id="forecast-body">
+      <tr><td colspan="3" style="text-align:center;color:#aaa;">Carregando...</td></tr>
+    </tbody>
+  </table>
+</div>
+
 <footer>
-  Cidade monitorada: Osvaldo Cruz, SP &nbsp;|&nbsp; Fonte: OpenWeatherMap API &nbsp;|&nbsp; Coleta automática a cada 30 min
+  Cidade monitorada: <span id="footer-city">--</span>, SP &nbsp;|&nbsp; Fonte: Open-Meteo API &nbsp;|&nbsp; Coleta automática a cada 30 min
 </footer>
 
 <script>
   let rainChart = null;
+  let currentCity = "{{ default_city }}";
+
+  function cityQuery() {
+    return "?city=" + encodeURIComponent(currentCity);
+  }
+
+  async function loadCities() {
+    const res = await fetch("/api/cities");
+    const cities = await res.json();
+
+    // Mantém a cidade escolhida ao recarregar a página (ex.: /?city=lucelia)
+    const fromUrl = new URLSearchParams(window.location.search).get("city");
+    if (cities.some(c => c.slug === fromUrl)) currentCity = fromUrl;
+
+    const select = document.getElementById("city-select");
+    select.innerHTML = "";
+    cities.forEach(c => {
+      const option = document.createElement("option");
+      option.value = c.slug;
+      option.textContent = c.name;
+      select.appendChild(option);
+    });
+    select.value = currentCity;
+    updateCityName();
+
+    select.addEventListener("change", () => {
+      currentCity = select.value;
+      updateCityName();
+      const url = new URL(window.location.href);
+      url.searchParams.set("city", currentCity);
+      history.replaceState(null, "", url);
+      loadAll();
+    });
+  }
+
+  function updateCityName() {
+    const select = document.getElementById("city-select");
+    document.getElementById("footer-city").textContent = select.options[select.selectedIndex].textContent;
+  }
 
   function getBadgeClass(risk) {
     if (risk === "Normal") return "badge-normal";
@@ -106,7 +166,7 @@
   }
 
   async function loadLatest() {
-    const res = await fetch("/api/latest");
+    const res = await fetch("/api/latest" + cityQuery());
     const d = await res.json();
 
     document.getElementById("rain-value").textContent = d.rain_1h.toFixed(1) + " mm/h";
@@ -124,7 +184,7 @@
   }
 
   async function loadHistory() {
-    const res = await fetch("/api/data");
+    const res = await fetch("/api/data" + cityQuery());
     const data = await res.json();
 
     const tbody = document.getElementById("history-body");
@@ -168,13 +228,38 @@
     });
   }
 
+  async function loadForecast() {
+    const tbody = document.getElementById("forecast-body");
+    const res = await fetch("/api/forecast" + cityQuery());
+    if (!res.ok) {
+      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;color:#aaa;">Previsão indisponível no momento.</td></tr>`;
+      return;
+    }
+    const data = await res.json();
+
+    tbody.innerHTML = "";
+    data.forEach(d => {
+      const [date, time] = d.time.split("T");
+      const [, month, day] = date.split("-");
+      tbody.innerHTML += `
+        <tr>
+          <td>${day}/${month} ${time}</td>
+          <td>${(d.precipitation ?? 0).toFixed(1)}</td>
+          <td>${d.precipitation_probability ?? "--"}%</td>
+        </tr>`;
+    });
+  }
+
   async function loadAll() {
     await loadLatest();
     await loadHistory();
+    await loadForecast();
   }
 
-  loadAll();
-  setInterval(loadAll, 60000);
+  loadCities().then(() => {
+    loadAll();
+    setInterval(loadAll, 60000);
+  });
 </script>
 
 </body>

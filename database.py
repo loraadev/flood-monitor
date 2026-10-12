@@ -37,15 +37,24 @@ def insert_data(timestamp, city, rain_1h, humidity, description, risk_level, win
     conn.commit()
     conn.close()
 
-def get_recent_data(limit=24):
+def get_recent_data(limit=24, city=None):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT timestamp, city, rain_1h, humidity, description, risk_level, wind_speed
-        FROM weather_data
-        ORDER BY id DESC
-        LIMIT ?
-    """, (limit,))
+    if city is None:
+        cursor.execute("""
+            SELECT timestamp, city, rain_1h, humidity, description, risk_level, wind_speed
+            FROM weather_data
+            ORDER BY id DESC
+            LIMIT ?
+        """, (limit,))
+    else:
+        cursor.execute("""
+            SELECT timestamp, city, rain_1h, humidity, description, risk_level, wind_speed
+            FROM weather_data
+            WHERE city = ?
+            ORDER BY id DESC
+            LIMIT ?
+        """, (city, limit))
     rows = cursor.fetchall()
     conn.close()
     return rows

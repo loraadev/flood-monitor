@@ -1,9 +1,10 @@
 import os
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 from database import create_table, get_recent_data
 from collector import collect_data, get_forecast
 from scheduler import start_scheduler
 from analyzer import get_risk_color
+from cities import CITIES, DEFAULT_CITY_SLUG, get_city
 
 app = Flask(__name__)
 
@@ -14,13 +15,27 @@ except Exception as e:
     print(f"Erro na coleta inicial: {e}")
 start_scheduler()
 
+def selected_city():
+    slug = request.args.get("city", DEFAULT_CITY_SLUG)
+    return get_city(slug)
+
+def city_not_found():
+    return jsonify({"error": "Cidade desconhecida"}), 400
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", default_city=DEFAULT_CITY_SLUG)
+
+@app.route("/api/cities")
+def api_cities():
+    return jsonify(CITIES)
 
 @app.route("/api/data")
 def api_data():
-    rows = get_recent_data(24)
+    city = selected_city()
+    if city is None:
+        return city_not_found()
+    rows = get_recent_data(24, city["name"])
     data = []
     for row in rows:
         data.append({
@@ -37,11 +52,14 @@ def api_data():
 
 @app.route("/api/latest")
 def api_latest():
-    rows = get_recent_data(1)
+    city = selected_city()
+    if city is None:
+        return city_not_found()
+    rows = get_recent_data(1, city["name"])
     if not rows:
         return jsonify({
             "timestamp": "--",
-            "city": "--",
+            "city": city["name"],
             "rain_1h": 0,
             "humidity": 0,
             "description": "--",
@@ -63,10 +81,13 @@ def api_latest():
 
 @app.route("/api/forecast")
 def api_forecast():
+    city = selected_city()
+    if city is None:
+        return city_not_found()
     try:
-        return jsonify(get_forecast())
+        return jsonify(get_forecast(city))
     except Exception as e:
-        print(f"Erro ao buscar previsão: {e}")
+        print(f"Erro ao buscar previsão de {city['name']}: {e}")
         return jsonify({"error": "Não foi possível obter a previsão"}), 502
 
 if __name__ == "__main__":
